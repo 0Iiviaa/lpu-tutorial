@@ -3,7 +3,9 @@ from common import *
 from utils import *
 from ops.matmul import *
 from ops.activation import *
+import torch.nn.functional as F
 
+# 矩阵乘验证，测试matmul里的三个算子
 class BlockTestMatmul(unittest.TestCase):
     def setUp(self):
         print("="*100)
@@ -43,6 +45,7 @@ class BlockTestMatmul(unittest.TestCase):
         print("BlockTestMatmul end")
         print("="*100)
 
+# 测试activation里的算子，验证它们在softmax/layernorm/rmsnorm/sigmoid/silu等激活函数中的组合使用
 class BlockTestActivation(unittest.TestCase):
     def setUp(self):
         print("="*100)
@@ -63,7 +66,7 @@ class BlockTestActivation(unittest.TestCase):
         for i in range(3):
             matmul_params = generate_matmul_params()
             left, right, bias = generate_matmul_tensor(matmul_params)
-            golden_mn = torch.layer_norm(left, dim=-1)
+            golden_mn = torch.layer_norm(left, (left.shape[-1],))
             result_mn = op_layernorm(left)
             test_pass = compare(result_mn, golden_mn)
             self.assertEqual(test_pass, True)
@@ -73,7 +76,7 @@ class BlockTestActivation(unittest.TestCase):
         for i in range(3):
             matmul_params = generate_matmul_params()
             left, right, bias = generate_matmul_tensor(matmul_params)
-            golden_mn = torch.rms_norm(left, dim=-1)
+            golden_mn = torch.rms_norm(left, (left.shape[-1],))
             result_mn = op_rmsnorm(left)
             test_pass = compare(result_mn, golden_mn)
             self.assertEqual(test_pass, True)
@@ -93,7 +96,7 @@ class BlockTestActivation(unittest.TestCase):
         for i in range(3):
             matmul_params = generate_matmul_params()
             left, right, bias = generate_matmul_tensor(matmul_params)
-            golden_mn = torch.silu(left)
+            golden_mn = F.silu(left)
             result_mn = op_silu(left)
             test_pass = compare(result_mn, golden_mn)
             self.assertEqual(test_pass, True)

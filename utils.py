@@ -1,31 +1,31 @@
 from common import *
 
-def mk_to_k1mk0(mk):
+def mk_to_k1mk0(mk):        # 移轴，二维(m, k)变换成三维(K1, M, K0)
     M = mk.shape[0]
     K = mk.shape[1]
     K1 = ceil_div(K, K0)
     mk1k0 = torch.zeros((M, K1*K0), dtype=mk.dtype)
     mk1k0[:, :K] = mk
-    k1mk0 = mk1k0.reshape(M, K1, K0).permute(1, 0, 2)
+    k1mk0 = mk1k0.reshape(M, K1, K0).permute(1, 0, 2)       # permute：重排张量维度
     return k1mk0
 
-def k1mk0_to_m1k1m0k0(k1mk0):
+def k1mk0_to_m1k1m0k0(k1mk0):       # 三维(K1, M, K0)变换成四维(M1, K1, M0, K0)
     M = k1mk0.shape[1]
     M1 = ceil_div(M, M0)
     K1 = k1mk0.shape[0]
     K0 = k1mk0.shape[2]
     k1m1m0k0 = torch.zeros((K1, M1*M0, K0), dtype=k1mk0.dtype)
-    k1m1m0k0[:,M] = k1mk0
-    m1k1m0k0 = k1mk0.reshape(K1, M1, M0, K0).permute(1, 0, 2, 3)
+    k1m1m0k0[:, :M, :] = k1mk0
+    m1k1m0k0 = k1m1m0k0.reshape(K1, M1, M0, K0).permute(1, 0, 2, 3)
     return m1k1m0k0
 
-def k1mk0_to_mk(k1mk0, k):
+def k1mk0_to_mk(k1mk0, k):      # 三维变二维
     mk = torch.zeros((k1mk0.shape[1], k), dtype=k1mk0.dtype)
     mk1k0 = k1mk0.permute(1, 0, 2).reshape(k1mk0.shape[1], k1mk0.shape[0]*k1mk0.shape[2])
     mk= mk1k0[:, :k]
     return mk
 
-def m1k1m0k0_to_k1mk0(m1k1m0k0, m):
+def m1k1m0k0_to_k1mk0(m1k1m0k0, m):     # 四维变三维
     K1 = m1k1m0k0.shape[0]
     M1 = m1k1m0k0.shape[1]
     M0 = m1k1m0k0.shape[2]
@@ -34,7 +34,7 @@ def m1k1m0k0_to_k1mk0(m1k1m0k0, m):
     k1mk0 = k1m1m0k0[:, :m] 
     return k1mk0
 
-def generate_matmul_params():
+def generate_matmul_params():       # 测试数据生成
     M_L2 = np.random.randint(3, 100)
     N_L2 = np.random.randint(3, 100)
     K_L2 = ceil_align(np.random.randint(3, 100), K0)
@@ -46,7 +46,7 @@ def generate_matmul_params():
     print(matmul_params)
     return matmul_params
 
-def generate_matmul_tensor(matmul_params):
+def generate_matmul_tensor(matmul_params):      # 测试数据生成
     M = matmul_params['M']
     N = matmul_params['N']
     K = matmul_params['K']
@@ -55,7 +55,7 @@ def generate_matmul_tensor(matmul_params):
     bias = torch.randn((N))
     return left, right, bias
 
-def compare(tensor_test, tensor_golden, int = False, golden_threshold = 0.001, error_threshold = 0.1):
+def compare(tensor_test, tensor_golden, int = False, golden_threshold = 0.001, error_threshold = 0.1):      # 结果对比
     if int:
         diff = torch.abs(tensor_test.flatten() - tensor_golden.flatten())
         error_rate = diff / (torch.abs(tensor_golden.flatten()) + 1)
