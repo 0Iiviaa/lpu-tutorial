@@ -11,6 +11,7 @@ def op_softmax(matrix_mn):
     M_L0 = np.random.randint(3, M_L2) if M_L2 > 3 else M_L2
     isa = ISA()
     matrix_n1mn0_l2 = mk_to_k1mk0(matrix_mn)
+    result_mn = torch.zeros_like(matrix_mn)
     for l0_m_start_in_l2 in range(0, M_L2, M_L0):
         l0_m_end_in_l2 = min(l0_m_start_in_l2 + M_L0, M_L2)
         m_size_l0 = l0_m_end_in_l2 - l0_m_start_in_l2
@@ -47,17 +48,18 @@ def op_softmax(matrix_mn):
                       )
         # output = exp / sum
         result_n1mn0 = isa.aru(m_size_l0, N_L2,
-                      psb_m1n1m0n0=exp_m1n1m0n0_ub, psb_rd_en=False, ub_m1n1m0n0=None, ub_rd_en=False,
-                      arb_in=sum_arb[0], arb_en=True, br_m=False, br_n=True, scalar_en=False, scalar=None, 
-                      add_en=False, sub_en=True, max_en=False, min_en=False,
-                      mul_en=False, div_en=False, neg_en=False, clamp_en=False,
-                      clamp_min=None, clamp_max=None, exp_en=True, sqrt_en=False,
+                      psb_m1n1m0n0=None, psb_rd_en=False, ub_m1n1m0n0=exp_m1n1m0n0_ub, ub_rd_en=True,
+                      arb_in=sum_arb, arb_en=True, br_m=False, br_n=True, scalar_en=False, scalar=None, 
+                      add_en=False, sub_en=False, max_en=False, min_en=False,
+                      mul_en=False, div_en=True, neg_en=False, clamp_en=False,
+                      clamp_min=None, clamp_max=None, exp_en=False, sqrt_en=False,
                       pow_en=False, recp_en=False,
-                      reduce_m_en=False, reduce_n_en=True, reduce_mode=2, # sum reduce
+                      reduce_m_en=False, reduce_n_en=False, reduce_mode=0,
                       ub_wr_en=True, ub_layout=1, gm_wr_en=False, arb_wr_en=False
                       )
-        result_mn = k1mk0_to_mk(result_n1mn0, N_L2)
-        return result_mn
+        result_tile_mn = k1mk0_to_mk(result_n1mn0[0], N_L2)
+        result_mn[l0_m_start_in_l2:l0_m_end_in_l2, :] = result_tile_mn
+    return result_mn
 
 def op_layernorm(matrix_mn):
     M_L2 = matrix_mn.shape[0]
@@ -66,6 +68,7 @@ def op_layernorm(matrix_mn):
     M_L0 = np.random.randint(3, M_L2) if M_L2 > 3 else M_L2
     isa = ISA()
     matrix_n1mn0_l2 = mk_to_k1mk0(matrix_mn)
+    result_mn = torch.zeros_like(matrix_mn)
     for l0_m_start_in_l2 in range(0, M_L2, M_L0):
         l0_m_end_in_l2 = min(l0_m_start_in_l2 + M_L0, M_L2)
         m_size_l0 = l0_m_end_in_l2 - l0_m_start_in_l2
@@ -109,19 +112,30 @@ def op_layernorm(matrix_mn):
                       reduce_m_en=False, reduce_n_en=False, reduce_mode=0,
                       ub_wr_en=False, ub_layout=0, gm_wr_en=False, arb_wr_en=True # 这里虽然没做reduce, 但是还是把数据写到arb里，方便下一步做broadcast
                       )
-        # norm = sub / sqrt
+        sub_m1n1m0n0_ub = isa.aru(m_size_l0, N_L2,
+                  psb_m1n1m0n0=matrix_m1n1m0n0_l0, psb_rd_en=True, ub_m1n1m0n0=None, ub_rd_en=False,
+                  arb_in=mean_m1n1m0n0_arb[0], arb_en=True, br_m=False, br_n=True, scalar_en=False, scalar=None,
+                  add_en=False, sub_en=True, max_en=False, min_en=False,
+                  mul_en=False, div_en=False, neg_en=False, clamp_en=False,
+                  clamp_min=None, clamp_max=None, exp_en=False, sqrt_en=False,
+                  pow_en=False, recp_en=False,
+                  reduce_m_en=False, reduce_n_en=False, reduce_mode=0,
+                  ub_wr_en=True, ub_layout=0, gm_wr_en=False, arb_wr_en=False
+                  )
+        # norm = (x - mean) / sqrt
         norm_n1mn0_ub = isa.aru(m_size_l0, N_L2,
-                      psb_m1n1m0n0=matrix_m1n1m0n0_l0, psb_rd_en=True, ub_m1n1m0n0=None, ub_rd_en=False,
-                      arb_in=sqrt_m1m0_arb[0], arb_en=True, br_m=False, br_n=True, scalar_en=False, scalar=None, 
-                      add_en=False, sub_en=False, max_en=False, min_en=False,
+                  psb_m1n1m0n0=None, psb_rd_en=False, ub_m1n1m0n0=sub_m1n1m0n0_ub[0], ub_rd_en=True,
+                  arb_in=sqrt_m1m0_arb[0], arb_en=True, br_m=False, br_n=True, scalar_en=False, scalar=None,
+                  add_en=False, sub_en=False, max_en=False, min_en=False,
                       mul_en=False, div_en=True, neg_en=False, clamp_en=False,
                       clamp_min=None, clamp_max=None, exp_en=False, sqrt_en=False,
                       pow_en=False, recp_en=False,
                       reduce_m_en=False, reduce_n_en=False, reduce_mode=0,
-                      ub_wr_en=True, ub_layout=1, gm_wr_en=False
+                      ub_wr_en=True, ub_layout=1, gm_wr_en=False, arb_wr_en=False
                       )
-        result_mn = k1mk0_to_mk(norm_n1mn0_ub, N_L2)
-        return result_mn
+        result_tile_mn = k1mk0_to_mk(norm_n1mn0_ub[0], N_L2)
+        result_mn[l0_m_start_in_l2:l0_m_end_in_l2, :] = result_tile_mn
+    return result_mn
 
 def op_rmsnorm(matrix_mn):
     M_L2 = matrix_mn.shape[0]
@@ -130,6 +144,7 @@ def op_rmsnorm(matrix_mn):
     M_L0 = np.random.randint(3, M_L2) if M_L2 > 3 else M_L2
     isa = ISA()
     matrix_n1mn0_l2 = mk_to_k1mk0(matrix_mn)
+    result_mn = torch.zeros_like(matrix_mn)
     for l0_m_start_in_l2 in range(0, M_L2, M_L0):
         l0_m_end_in_l2 = min(l0_m_start_in_l2 + M_L0, M_L2)
         m_size_l0 = l0_m_end_in_l2 - l0_m_start_in_l2
@@ -169,8 +184,9 @@ def op_rmsnorm(matrix_mn):
                       reduce_m_en=False, reduce_n_en=False, reduce_mode=0, # sum reduce
                       ub_wr_en=True, ub_layout=1, gm_wr_en=False, arb_wr_en=False
                       )
-        result_mn = k1mk0_to_mk(norm_n1mn0_ub, N_L2)
-        return result_mn
+        result_tile_mn = k1mk0_to_mk(norm_n1mn0_ub[0], N_L2)
+        result_mn[l0_m_start_in_l2:l0_m_end_in_l2, :] = result_tile_mn
+    return result_mn
 
 def op_sigmoid(matrix_mn):
     M_L2 = matrix_mn.shape[0]
@@ -179,6 +195,7 @@ def op_sigmoid(matrix_mn):
     M_L0 = np.random.randint(3, M_L2) if M_L2 > 3 else M_L2
     isa = ISA()
     matrix_n1mn0_l2 = mk_to_k1mk0(matrix_mn)
+    result_mn = torch.zeros_like(matrix_mn)
     for l0_m_start_in_l2 in range(0, M_L2, M_L0):
         l0_m_end_in_l2 = min(l0_m_start_in_l2 + M_L0, M_L2)
         m_size_l0 = l0_m_end_in_l2 - l0_m_start_in_l2
@@ -189,24 +206,33 @@ def op_sigmoid(matrix_mn):
                       psb_m1n1m0n0=matrix_m1n1m0n0_l0, psb_rd_en=True, ub_m1n1m0n0=None, ub_rd_en=False,
                       arb_in=None, arb_en=False, br_m=False, br_n=False, scalar_en=False, scalar=None, 
                       add_en=False, sub_en=False, max_en=False, min_en=False,
-                      mul_en=False, div_en=False, neg_en=False, clamp_en=False,
+                      mul_en=False, div_en=False, neg_en=True, clamp_en=False,
                       clamp_min=-500., clamp_max=500., exp_en=True, sqrt_en=False,
                       pow_en=False, recp_en=False,
                       reduce_m_en=False, reduce_n_en=False, reduce_mode=0,
-                      ub_wr_en=True, ub_layout=0, gm_wr_en=False, arb_wr_en=True# 因为exp还要用，所以要输出到ub
+                      ub_wr_en=True, ub_layout=0, gm_wr_en=False, arb_wr_en=False# 因为exp还要用，所以要输出到ub
                       )
         # sigmoid = 1 / (1 + exp) 这里的1怎么给进去有点纠结，在指令里直接给，还是先把数据给到UB，然后把数据从UB搬运到ARB，这么做太麻烦了。
         # 感觉可以在指令域段里给一个scalar域段，binary操作可以选择从scalar获取一路数据，这样比较符合直觉，缺点是每个binary都要增加一个域段，标识数据从哪里进
-        sigmoid_m1n1m0n0_ub = isa.aru(m_size_l0, N_L2,
-                      psb_m1n1m0n0=None, psb_rd_en=False, ub_m1n1m0n0=None, ub_rd_en=False,
-                      arb_in=exp_m1n1m0n0_ub[0], arb_en=False, br_m=False, br_n=False, scalar_en=True, scalar=1., 
+        one_plus_exp_m1n1m0n0_ub = isa.aru(m_size_l0, N_L2,
+                      psb_m1n1m0n0=None, psb_rd_en=False, ub_m1n1m0n0=exp_m1n1m0n0_ub[0], ub_rd_en=True,
+                      arb_in=None, arb_en=False, br_m=False, br_n=False, scalar_en=True, scalar=1., 
                       add_en=True, sub_en=False, max_en=False, min_en=False, mul_en=False, div_en=False, 
                       neg_en=False, clamp_en=False, clamp_min=None, clamp_max=None, exp_en=False, sqrt_en=False, pow_en=False, recp_en=False,
                       reduce_m_en=False, reduce_n_en=False, reduce_mode=0,
-                      ub_wr_en=False, ub_layout=0, gm_wr_en=False, arb_wr_en=True
+                      ub_wr_en=True, ub_layout=0, gm_wr_en=False, arb_wr_en=False
                       )
-        result_mn = k1mk0_to_mk(sigmoid_m1n1m0n0_ub, N_L2)
-        return result_mn
+        sigmoid_n1mn0_ub = isa.aru(m_size_l0, N_L2,
+                      psb_m1n1m0n0=None, psb_rd_en=False, ub_m1n1m0n0=one_plus_exp_m1n1m0n0_ub[0], ub_rd_en=True,
+                      arb_in=None, arb_en=False, br_m=False, br_n=False, scalar_en=False, scalar=None,
+                      add_en=False, sub_en=False, max_en=False, min_en=False, mul_en=False, div_en=False,
+                      neg_en=False, clamp_en=False, clamp_min=None, clamp_max=None, exp_en=False, sqrt_en=False, pow_en=False, recp_en=True,
+                      reduce_m_en=False, reduce_n_en=False, reduce_mode=0,
+                      ub_wr_en=True, ub_layout=1, gm_wr_en=False, arb_wr_en=False
+                      )
+        result_tile_mn = k1mk0_to_mk(sigmoid_n1mn0_ub[0], N_L2)
+        result_mn[l0_m_start_in_l2:l0_m_end_in_l2, :] = result_tile_mn
+    return result_mn
 
 def op_silu(matrix_mn):
     M_L2 = matrix_mn.shape[0]
@@ -215,6 +241,7 @@ def op_silu(matrix_mn):
     M_L0 = np.random.randint(3, M_L2) if M_L2 > 3 else M_L2
     isa = ISA()
     matrix_n1mn0_l2 = mk_to_k1mk0(matrix_mn)
+    result_mn = torch.zeros_like(matrix_mn)
     for l0_m_start_in_l2 in range(0, M_L2, M_L0):
         l0_m_end_in_l2 = min(l0_m_start_in_l2 + M_L0, M_L2)
         m_size_l0 = l0_m_end_in_l2 - l0_m_start_in_l2
@@ -225,15 +252,15 @@ def op_silu(matrix_mn):
                       psb_m1n1m0n0=matrix_m1n1m0n0_l0, psb_rd_en=True, ub_m1n1m0n0=None, ub_rd_en=False, scalar_en=False, scalar=None, 
                       arb_in=None, arb_en=False, br_m=False, br_n=False,
                       add_en=False, sub_en=False, max_en=False, min_en=False,
-                      mul_en=False, div_en=False, neg_en=False, clamp_en=False,
+                      mul_en=False, div_en=False, neg_en=True, clamp_en=False,
                       clamp_min=-500., clamp_max=500., exp_en=True, sqrt_en=False,
                       pow_en=False, recp_en=False,
                       reduce_m_en=False, reduce_n_en=False, reduce_mode=0,
-                      ub_wr_en=True, ub_layout=0, gm_wr_en=False, arb_wr_en=True# 因为exp还要用，所以要输出到ub
+                      ub_wr_en=True, ub_layout=0, gm_wr_en=False, arb_wr_en=False# 因为exp还要用，所以要输出到ub
                       )
         # sigmoid = 1 / (1 + exp) 这里的1怎么给进去有点纠结，在指令里直接给，还是先把数据给到UB，然后把数据从UB搬运到ARB，这么做太麻烦了。
         # 感觉可以在指令域段里给一个scalar域段，binary操作可以选择从scalar获取一路数据，这样比较符合直觉，缺点是每个binary都要增加一个域段，标识数据从哪里进
-        sigmoid_m1n1m0n0_ub = isa.aru(m_size_l0, N_L2,
+        one_plus_exp_m1n1m0n0_ub = isa.aru(m_size_l0, N_L2,
                       psb_m1n1m0n0=None, psb_rd_en=False, ub_m1n1m0n0=exp_m1n1m0n0_ub[0], ub_rd_en=True, scalar_en=True, scalar=1., 
                       arb_in=None, arb_en=False, br_m=False, br_n=False,
                       add_en=True, sub_en=False, max_en=False, min_en=False,
@@ -241,17 +268,28 @@ def op_silu(matrix_mn):
                       clamp_min=None, clamp_max=None, exp_en=False, sqrt_en=False,
                       pow_en=False, recp_en=False,
                       reduce_m_en=False, reduce_n_en=False, reduce_mode=0,
-                      ub_wr_en=False, ub_layout=0, gm_wr_en=False, arb_wr_en=True
+                      ub_wr_en=True, ub_layout=0, gm_wr_en=False, arb_wr_en=False
                       )
-        silu_n1mn0_ub = isa.aru(m_size_l0, N_L2,
-                      psb_m1n1m0n0=matrix_n1mn0_l2, psb_rd_en=True, ub_m1n1m0n0=sigmoid_m1n1m0n0_ub[0], ub_rd_en=True, scalar_en=False, scalar=None, 
+        sigmoid_m1n1m0n0_ub = isa.aru(m_size_l0, N_L2,
+                      psb_m1n1m0n0=None, psb_rd_en=False, ub_m1n1m0n0=one_plus_exp_m1n1m0n0_ub[0], ub_rd_en=True, scalar_en=False, scalar=None,
                       arb_in=None, arb_en=False, br_m=False, br_n=False,
                       add_en=False, sub_en=False, max_en=False, min_en=False,
                       mul_en=False, div_en=False, neg_en=False, clamp_en=False,
                       clamp_min=None, clamp_max=None, exp_en=False, sqrt_en=False,
+                      pow_en=False, recp_en=True,
+                      reduce_m_en=False, reduce_n_en=False, reduce_mode=0,
+                      ub_wr_en=True, ub_layout=0, gm_wr_en=False, arb_wr_en=False
+                      )
+        silu_n1mn0_ub = isa.aru(m_size_l0, N_L2,
+                      psb_m1n1m0n0=matrix_m1n1m0n0_l0, psb_rd_en=True, ub_m1n1m0n0=sigmoid_m1n1m0n0_ub[0], ub_rd_en=True, scalar_en=False, scalar=None, 
+                      arb_in=None, arb_en=False, br_m=False, br_n=False,
+                      add_en=False, sub_en=False, max_en=False, min_en=False,
+                      mul_en=True, div_en=False, neg_en=False, clamp_en=False,
+                      clamp_min=None, clamp_max=None, exp_en=False, sqrt_en=False,
                       pow_en=False, recp_en=False,
                       reduce_m_en=False, reduce_n_en=False, reduce_mode=0,
-                      ub_wr_en=False, ub_layout=0, gm_wr_en=False, arb_wr_en=True
+                      ub_wr_en=True, ub_layout=1, gm_wr_en=False, arb_wr_en=False
                       )
-        result_mn = k1mk0_to_mk(silu_n1mn0_ub[0], N_L2)
-        return result_mn
+        result_tile_mn = k1mk0_to_mk(silu_n1mn0_ub[0], N_L2)
+        result_mn[l0_m_start_in_l2:l0_m_end_in_l2, :] = result_tile_mn
+    return result_mn

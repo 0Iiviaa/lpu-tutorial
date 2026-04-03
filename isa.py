@@ -171,13 +171,13 @@ class ISA:
             x2 = None
         elif(psb_rd_en == False and ub_rd_en == True and arb_en == True and scalar_en == False):
             x1 = ub_m1n1m0n0
-            x2 = Broadcast(arb_in , M1, N1, br_m, br_n)
+            x2 = Broadcast(arb_in , slice_m, slice_n, br_m, br_n)
         elif(psb_rd_en == True and ub_rd_en == False and arb_en == False and scalar_en == False):
             x1 = psb_m1n1m0n0
             x2 = None
         elif(psb_rd_en == True and ub_rd_en == False and arb_en == True and scalar_en == False):
             x1 = psb_m1n1m0n0
-            x2 = Broadcast(arb_in , M1, N1, br_m, br_n)
+            x2 = Broadcast(arb_in , slice_m, slice_n, br_m, br_n)
         elif(psb_rd_en == True and ub_rd_en == True and arb_en == False and scalar_en == False):
             x1 = psb_m1n1m0n0
             x2 = ub_m1n1m0n0

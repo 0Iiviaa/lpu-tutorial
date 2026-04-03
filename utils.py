@@ -26,8 +26,8 @@ def k1mk0_to_mk(k1mk0, k):      # 三维变二维
     return mk
 
 def m1k1m0k0_to_k1mk0(m1k1m0k0, m):     # 四维变三维
-    K1 = m1k1m0k0.shape[0]
-    M1 = m1k1m0k0.shape[1]
+    M1 = m1k1m0k0.shape[0]
+    K1 = m1k1m0k0.shape[1]
     M0 = m1k1m0k0.shape[2]
     K0 = m1k1m0k0.shape[3]
     k1m1m0k0 = m1k1m0k0.permute(1, 0, 2, 3).reshape(K1, M1*M0, K0)

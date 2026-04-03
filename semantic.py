@@ -10,13 +10,19 @@ def Broadcast(x, slice_m, slice_n, br_m, br_n):     # 广播机制实现，输�
         assert x.ndim == 0
         x_m1n1m0n0 = x.unsqueeze(0).unsqueeze(1).unsqueeze(2).unsqueeze(3).expand(M1, N1, M0, N0)
     elif(br_m and not br_n):            # 行广播
-        assert x.ndim == 1 and x.shape[0] == slice_n
+        if x.ndim == 2:
+            x = x.reshape(-1)
+        assert x.ndim == 1 and x.shape[0] >= slice_n
+        x = x[:slice_n]
         x_mn = x.unsqueeze(0).expand(slice_m, slice_n)
         x_m1m0n1n0 = torch.zeros((M1*M0, N1*N0))
         x_m1m0n1n0[:slice_m, :slice_n] = x_mn
         x_m1n1m0n0 = x_m1m0n1n0.reshape(M1, M0, N1, N0).permute(0, 2, 1, 3)
     elif(not br_m and br_n):            # 列广播
-        assert x.ndim == 1 and x.shape[0] == slice_m
+        if x.ndim == 2:
+            x = x.reshape(-1)
+        assert x.ndim == 1 and x.shape[0] >= slice_m
+        x = x[:slice_m]
         x_mn = x.unsqueeze(1).expand(slice_m, slice_n)
         x_m1m0n1n0 = torch.zeros((M1*M0, N1*N0))
         x_m1m0n1n0[:slice_m, :slice_n] = x_mn
@@ -57,26 +63,26 @@ def Unary(x, neg_en, clamp_en, clamp_min, clamp_max, exp_en, sqrt_en, pow_en, re
     return x
 
 def Reduce(x, reduce_m_en, reduce_n_en, reduce_mode):       # 归约算子，按维度操作，四种规约模式
+    reduce_dim = None
+    if reduce_n_en and reduce_m_en:
+        reduce_dim = (0, 1, 2, 3)
+    elif reduce_n_en:
+        reduce_dim = (1, 3)
+    elif reduce_m_en:
+        reduce_dim = (0, 2)
+
     if reduce_mode == 0: 
-        if reduce_n_en:
-            x = torch.max(x, dim=1).values
-        if reduce_m_en:
-            x = torch.max(x, dim=0).values
+        if reduce_dim is not None:
+            x = torch.amax(x, dim=reduce_dim)
     elif reduce_mode == 1:
-        if reduce_n_en:
-            x = torch.min(x, dim=1).values
-        if reduce_m_en:
-            x = torch.min(x, dim=0).values
+        if reduce_dim is not None:
+            x = torch.amin(x, dim=reduce_dim)
     elif reduce_mode == 2:
-        if reduce_n_en:
-            x = torch.sum(x, dim=1)
-        if reduce_m_en:
-            x = torch.sum(x, dim=0)
+        if reduce_dim is not None:
+            x = torch.sum(x, dim=reduce_dim)
     elif reduce_mode == 3:
-        if reduce_n_en:
-            x = torch.mean(x, dim=1)
-        if reduce_m_en:
-            x = torch.mean(x, dim=0)
+        if reduce_dim is not None:
+            x = torch.mean(x, dim=reduce_dim)
     return x
 
 def Attention(x, context, mask=None):       # 注意力机制实现，输入是查询向量x和上下文向量context，输出是加权后的上下文向量，mask可选
