@@ -18,9 +18,8 @@ def op_softmax(matrix_mn):
         # 因为做softmax必须在N方向做reduce，所以在N方向不切分
         # softmax的输入存放在PSB中，但是没有GM到PSB的数据通路，所以暂时借用gdma_mov2lmb把n1mn0转换成m1n1m0n0
         # 这里只是做指令集验证，后面softmax会放到矩阵乘法后面
-        # matrix_m1n1m0n0_l0 = isa.gdma_mov2lmb(matrix_n1mn0_l2, m_size_l0, N1_L2, 0, M_L2, N1_L2)
         matrix_m1n1m0n0_l0 = isa.gdma_mov2lmb(matrix_n1mn0_l2, M_L2, l0_m_start_in_l2, N1_L2, 0, m_size_l0, N1_L2)
-        # max = torch.max(scale_)
+        # max
         max_m1n1m0n0_arb = isa.aru(slice_m=m_size_l0, slice_n=N_L2,
                       psb_m1n1m0n0=matrix_m1n1m0n0_l0, psb_rd_en=True, ub_m1n1m0n0=None, ub_rd_en=False,
                       arb_in=None, arb_en=False, br_m=False, br_n=False, scalar_en = False, scalar=None, 
@@ -73,9 +72,8 @@ def op_layernorm(matrix_mn):
         l0_m_end_in_l2 = min(l0_m_start_in_l2 + M_L0, M_L2)
         m_size_l0 = l0_m_end_in_l2 - l0_m_start_in_l2
         # layernorm跟softmax类似
-        # matrix_m1n1m0n0_l0 = isa.gdma_mov2lmb(matrix_n1mn0_l2, m_size_l0, N1_L2, 0, M_L2, N1_L2)
         matrix_m1n1m0n0_l0 = isa.gdma_mov2lmb(matrix_n1mn0_l2, M_L2, l0_m_start_in_l2, N1_L2, 0, m_size_l0, N1_L2)
-        # mean = torch.mean(scale_)
+        # mean
         mean_m1n1m0n0_arb = isa.aru(slice_m=m_size_l0, slice_n=N_L2,
                       psb_m1n1m0n0=matrix_m1n1m0n0_l0, psb_rd_en=True, ub_m1n1m0n0=None, ub_rd_en=False,
                       arb_in=None, arb_en=False, br_m=False, br_n=None, scalar_en=False, scalar=None, 
@@ -112,6 +110,7 @@ def op_layernorm(matrix_mn):
                       reduce_m_en=False, reduce_n_en=False, reduce_mode=0,
                       ub_wr_en=False, ub_layout=0, gm_wr_en=False, arb_wr_en=True # 这里虽然没做reduce, 但是还是把数据写到arb里，方便下一步做broadcast
                       )
+        # sub = x - mean
         sub_m1n1m0n0_ub = isa.aru(m_size_l0, N_L2,
                   psb_m1n1m0n0=matrix_m1n1m0n0_l0, psb_rd_en=True, ub_m1n1m0n0=None, ub_rd_en=False,
                   arb_in=mean_m1n1m0n0_arb[0], arb_en=True, br_m=False, br_n=True, scalar_en=False, scalar=None,
@@ -122,7 +121,7 @@ def op_layernorm(matrix_mn):
                   reduce_m_en=False, reduce_n_en=False, reduce_mode=0,
                   ub_wr_en=True, ub_layout=0, gm_wr_en=False, arb_wr_en=False
                   )
-        # norm = (x - mean) / sqrt
+        # norm = sub / sqrt
         norm_n1mn0_ub = isa.aru(m_size_l0, N_L2,
                   psb_m1n1m0n0=None, psb_rd_en=False, ub_m1n1m0n0=sub_m1n1m0n0_ub[0], ub_rd_en=True,
                   arb_in=sqrt_m1m0_arb[0], arb_en=True, br_m=False, br_n=True, scalar_en=False, scalar=None,
@@ -148,7 +147,6 @@ def op_rmsnorm(matrix_mn):
     for l0_m_start_in_l2 in range(0, M_L2, M_L0):
         l0_m_end_in_l2 = min(l0_m_start_in_l2 + M_L0, M_L2)
         m_size_l0 = l0_m_end_in_l2 - l0_m_start_in_l2
-        # matrix_m1n1m0n0_l0 = isa.gdma_mov2lmb(matrix_n1mn0_l2, m_size_l0, N1_L2, 0, M_L2, N1_L2)
         matrix_m1n1m0n0_l0 = isa.gdma_mov2lmb(matrix_n1mn0_l2, M_L2, l0_m_start_in_l2, N1_L2, 0, m_size_l0, N1_L2)
         # pow = torch.pow(x, 2)
         # mean = torch.mean(pow)
@@ -199,7 +197,6 @@ def op_sigmoid(matrix_mn):
     for l0_m_start_in_l2 in range(0, M_L2, M_L0):
         l0_m_end_in_l2 = min(l0_m_start_in_l2 + M_L0, M_L2)
         m_size_l0 = l0_m_end_in_l2 - l0_m_start_in_l2
-        # matrix_m1n1m0n0_l0 = isa.gdma_mov2lmb(matrix_n1mn0_l2, m_size_l0, N1_L2, 0, M_L2, N1_L2)
         matrix_m1n1m0n0_l0 = isa.gdma_mov2lmb(matrix_n1mn0_l2, M_L2, l0_m_start_in_l2, N1_L2, 0, m_size_l0, N1_L2)
         # exp = torch.exp(-x)
         exp_m1n1m0n0_ub = isa.aru(m_size_l0, N_L2,
@@ -245,7 +242,6 @@ def op_silu(matrix_mn):
     for l0_m_start_in_l2 in range(0, M_L2, M_L0):
         l0_m_end_in_l2 = min(l0_m_start_in_l2 + M_L0, M_L2)
         m_size_l0 = l0_m_end_in_l2 - l0_m_start_in_l2
-        # matrix_m1n1m0n0_l0 = isa.gdma_mov2lmb(matrix_n1mn0_l2, m_size_l0, N1_L2, 0, M_L2, N1_L2)
         matrix_m1n1m0n0_l0 = isa.gdma_mov2lmb(matrix_n1mn0_l2, M_L2, l0_m_start_in_l2, N1_L2, 0, m_size_l0, N1_L2)
         # exp = torch.exp(-x)
         exp_m1n1m0n0_ub = isa.aru(m_size_l0, N_L2,

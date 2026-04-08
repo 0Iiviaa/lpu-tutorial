@@ -160,9 +160,6 @@ class ISA:
             reduce_m_en, reduce_n_en, reduce_mode, \
             ub_wr_en, ub_layout, gm_wr_en, arb_wr_en):  # arb是规约用的buffer
 
-        M1 = ceil_div(slice_m, M0)
-        N1 = ceil_div(slice_n, N0)
-
 # 根据输入控制信号选择输入源，进行二元运算和一元运算，最后根据输出控制信号选择写回目的地
         # 选择是否broadcast，以及准备单双目运算的输入
         # 如果psb/ub有一个输入则为x1，有两个输入则分别为x1/x2，x2还有另外三种情况：从arb输入需要broadcast，如果输入是标量scalar直接张量填充，如果都不是直接为None
